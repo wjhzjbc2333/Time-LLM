@@ -51,12 +51,15 @@
 ```
 
 ## Updates/News:
+🚩 **News** (Oct. 2025): Time-LLM has been cited 1,000 times in the past two years! 🎉 We are deeply grateful to the community for the incredible support along the journey.
 
 🚩 **News** (Aug. 2024): Time-LLM has been adopted by XiMou Optimization Technology Co., Ltd. (XMO) for Solar, Wind, and Weather Forecasting.
 
+🚩 **News** (Oct. 2024): Time-LLM has been included in [PyPOTS](https://pypots.com/). Many thanks to the PyPOTS team!
+
 🚩 **News** (May 2024): Time-LLM has been included in [NeuralForecast](https://github.com/Nixtla/neuralforecast). Special thanks to the contributor @[JQGoh](https://github.com/JQGoh) and @[marcopeix](https://github.com/marcopeix)!
 
-🚩 **News** (March 2024): Time-LLM has been upgraded to serve as a general framework for repurposing a wide range of language models to time series forecasting. It now defaults to supporting Llama-7B and includes compatibility with two additional smaller PLMs (GPT-2 and BERT). Simply adjust `--llm_model` and `--llm_dim` to switch backbones.
+🚩 **News** (Mar. 2024): Time-LLM has been upgraded to serve as a general framework for repurposing a wide range of language models to time series forecasting. It now defaults to supporting Llama-7B and includes compatibility with two additional smaller PLMs (GPT-2 and BERT). Simply adjust `--llm_model` and `--llm_dim` to switch backbones.
 
 ## Introduction
 Time-LLM is a reprogramming framework to repurpose LLMs for general time series forecasting with the backbone language models kept intact.
@@ -120,86 +123,77 @@ Please refer to ```run_main.py```, ```run_m4.py``` and ```run_pretrain.py``` for
 
 
 ## Further Reading
-1, [**TimeMixer++: A General Time Series Pattern Machine for Universal Predictive Analysis**](https://arxiv.org/abs/2410.16032), in *arXiv* 2024.
+
+As one of the earliest works exploring the intersection of large language models and time series, we sincerely thank the open-source community for supporting our research. While we do not plan to make major updates to the main Time-LLM codebase, we still welcome **constructive pull requests** to help maintain and improve it.
+
+🌟 Please check out our team’s latest research projects listed below. 
+
+1, [**TimeOmni-1: Incentivizing Complex Reasoning with Time Series in Large Language Models**](https://arxiv.org/pdf/2509.24803), *arXiv* 2025.
+
+**Authors**: Tong Guan, Zijie Meng, Dianqi Li, Shiyu Wang, Chao-Han Huck Yang, Qingsong Wen, Zuozhu Liu, Sabato Marco Siniscalchi, Ming Jin, Shirui Pan
+
+```bibtex
+@article{guan2025timeomni,
+  title={TimeOmni-1: Incentivizing Complex Reasoning with Time Series in Large Language Models},
+  author={Guan, Tong and Meng, Zijie and Li, Dianqi and Wang, Shiyu and Yang, Chao-Han Huck and Wen, Qingsong and Liu, Zuozhu and Siniscalchi, Sabato Marco and Jin, Ming and Pan, Shirui},
+  journal={arXiv preprint arXiv:2509.24803},
+  year={2025}
+}
+```
+
+2, [**Time-MQA: Time Series Multi-Task Question Answering with Context Enhancement**](https://arxiv.org/pdf/2503.01875), in *ACL* 2025.
+[\[HuggingFace\]](https://huggingface.co/Time-MQA)
+
+**Authors**: Yaxuan Kong, Yiyuan Yang, Yoontae Hwang, Wenjie Du, Stefan Zohren, Zhangyang Wang, Ming Jin, Qingsong Wen
+
+```bibtex
+@inproceedings{kong2025time,
+  title={Time-mqa: Time series multi-task question answering with context enhancement},
+  author={Kong, Yaxuan and Yang, Yiyuan and Hwang, Yoontae and Du, Wenjie and Zohren, Stefan and Wang, Zhangyang and Jin, Ming and Wen, Qingsong},
+  booktitle={The 63rd Annual Meeting of the Association for Computational Linguistics (ACL 2025)},
+  year={2025}
+}
+```
+
+3, [**Towards Neural Scaling Laws for Time Series Foundation Models**](https://arxiv.org/pdf/2410.12360), in *ICLR* 2025.
+[\[GitHub Repo\]](https://github.com/Qingrenn/TSFM-ScalingLaws)
+
+**Authors**: Qingren Yao, Chao-Han Huck Yang, Renhe Jiang, Yuxuan Liang, Ming Jin, Shirui Pan
+
+```bibtex
+@inproceedings{yaotowards,
+  title={Towards Neural Scaling Laws for Time Series Foundation Models},
+  author={Yao, Qingren and Yang, Chao-Han Huck and Jiang, Renhe and Liang, Yuxuan and Jin, Ming and Pan, Shirui},
+  booktitle={International Conference on Learning Representations (ICLR)}
+  year={2025}
+}
+```
+
+4, [**Time-MoE: Billion-Scale Time Series Foundation Models with Mixture of Experts**](https://arxiv.org/pdf/2409.16040), in *ICLR* 2025.
+[\[GitHub Repo\]](https://github.com/Time-MoE/Time-MoE)
+
+**Authors**: Xiaoming Shi, Shiyu Wang, Yuqi Nie, Dianqi Li, Zhou Ye, Qingsong Wen, Ming Jin
+
+```bibtex
+@inproceedings{shi2024time,
+  title={Time-moe: Billion-scale time series foundation models with mixture of experts},
+  author={Shi, Xiaoming and Wang, Shiyu and Nie, Yuqi and Li, Dianqi and Ye, Zhou and Wen, Qingsong and Jin, Ming},
+  booktitle={International Conference on Learning Representations (ICLR)},
+  year={2025}
+}
+```
+
+5, [**TimeMixer++: A General Time Series Pattern Machine for Universal Predictive Analysis**](https://arxiv.org/abs/2410.16032), in *ICLR* 2025.
 [\[GitHub Repo\]](https://github.com/kwuking/TimeMixer/blob/main/README.md)
 
 **Authors**: Shiyu Wang, Jiawei Li, Xiaoming Shi, Zhou Ye, Baichuan Mo, Wenze Lin, Shengtong Ju, Zhixuan Chu, Ming Jin
 
 ```bibtex
-@article{wang2024timemixer++,
+@inproceedings{wang2024timemixer++,
   title={TimeMixer++: A General Time Series Pattern Machine for Universal Predictive Analysis},
   author={Wang, Shiyu and Li, Jiawei and Shi, Xiaoming and Ye, Zhou and Mo, Baichuan and Lin, Wenze and Ju, Shengtong and Chu, Zhixuan and Jin, Ming},
-  journal={arXiv preprint arXiv:2410.16032},
-  year={2024}
-}
-```
-
-2, [**Foundation Models for Time Series Analysis: A Tutorial and Survey**](https://arxiv.org/pdf/2403.14735), in *KDD* 2024.
-
-**Authors**: Yuxuan Liang, Haomin Wen, Yuqi Nie, Yushan Jiang, Ming Jin, Dongjin Song, Shirui Pan, Qingsong Wen*
-
-```bibtex
-@inproceedings{liang2024foundation,
-  title={Foundation models for time series analysis: A tutorial and survey},
-  author={Liang, Yuxuan and Wen, Haomin and Nie, Yuqi and Jiang, Yushan and Jin, Ming and Song, Dongjin and Pan, Shirui and Wen, Qingsong},
-  booktitle={ACM SIGKDD Conference on Knowledge Discovery and Data Mining (KDD 2024)},
-  year={2024}
-}
-```
-
-3, [**Position Paper: What Can Large Language Models Tell Us about Time Series Analysis**](https://arxiv.org/abs/2402.02713), in *ICML* 2024.
-
-**Authors**: Ming Jin, Yifan Zhang, Wei Chen, Kexin Zhang, Yuxuan Liang*, Bin Yang, Jindong Wang, Shirui Pan, Qingsong Wen*
-
-```bibtex
-@inproceedings{jin2024position,
-   title={Position Paper: What Can Large Language Models Tell Us about Time Series Analysis}, 
-   author={Ming Jin and Yifan Zhang and Wei Chen and Kexin Zhang and Yuxuan Liang and Bin Yang and Jindong Wang and Shirui Pan and Qingsong Wen},
-  booktitle={International Conference on Machine Learning (ICML 2024)},
-  year={2024}
-}
-```
-
-4, [**Large Models for Time Series and Spatio-Temporal Data: A Survey and Outlook**](https://arxiv.org/abs/2310.10196), in *arXiv* 2023.
-[\[GitHub Repo\]](https://github.com/qingsongedu/Awesome-TimeSeries-SpatioTemporal-LM-LLM)
-
-**Authors**: Ming Jin, Qingsong Wen*, Yuxuan Liang, Chaoli Zhang, Siqiao Xue, Xue Wang, James Zhang, Yi Wang, Haifeng Chen, Xiaoli Li (IEEE Fellow), Shirui Pan*, Vincent S. Tseng (IEEE Fellow), Yu Zheng (IEEE Fellow), Lei Chen (IEEE Fellow), Hui Xiong (IEEE Fellow)
-
-```bibtex
-@article{jin2023lm4ts,
-  title={Large Models for Time Series and Spatio-Temporal Data: A Survey and Outlook}, 
-  author={Ming Jin and Qingsong Wen and Yuxuan Liang and Chaoli Zhang and Siqiao Xue and Xue Wang and James Zhang and Yi Wang and Haifeng Chen and Xiaoli Li and Shirui Pan and Vincent S. Tseng and Yu Zheng and Lei Chen and Hui Xiong},
-  journal={arXiv preprint arXiv:2310.10196},
-  year={2023}
-}
-```
-
-
-5, [**Transformers in Time Series: A Survey**](https://arxiv.org/abs/2202.07125), in IJCAI 2023.
-[\[GitHub Repo\]](https://github.com/qingsongedu/time-series-transformers-review)
-
-**Authors**: Qingsong Wen, Tian Zhou, Chaoli Zhang, Weiqi Chen, Ziqing Ma, Junchi Yan, Liang Sun
-
-```bibtex
-@inproceedings{wen2023transformers,
-  title={Transformers in time series: A survey},
-  author={Wen, Qingsong and Zhou, Tian and Zhang, Chaoli and Chen, Weiqi and Ma, Ziqing and Yan, Junchi and Sun, Liang},
-  booktitle={International Joint Conference on Artificial Intelligence(IJCAI)},
-  year={2023}
-}
-```
-
-6, [**TimeMixer: Decomposable Multiscale Mixing for Time Series Forecasting**](https://openreview.net/pdf?id=7oLshfEIC2), in ICLR 2024.
-[\[GitHub Repo\]](https://github.com/kwuking/TimeMixer)
-
-**Authors**: Shiyu Wang, Haixu Wu, Xiaoming Shi, Tengge Hu, Huakun Luo, Lintao Ma, James Y. Zhang, Jun Zhou 
-
-```bibtex
-@inproceedings{wang2023timemixer,
-  title={TimeMixer: Decomposable Multiscale Mixing for Time Series Forecasting},
-  author={Wang, Shiyu and Wu, Haixu and Shi, Xiaoming and Hu, Tengge and Luo, Huakun and Ma, Lintao and Zhang, James Y and ZHOU, JUN},
   booktitle={International Conference on Learning Representations (ICLR)},
-  year={2024}
+  year={2025}
 }
 ```
 
