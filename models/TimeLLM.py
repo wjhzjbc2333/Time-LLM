@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 
 from transformers import LlamaConfig, LlamaModel, LlamaTokenizer, GPT2Config, GPT2Model, GPT2Tokenizer, BertConfig, \
-    BertModel, BertTokenizer
+    BertModel, BertTokenizer, AutoTokenizer
 from layers.Embed import PatchEmbedding
 import transformers
 from layers.StandardNorm import Normalize
@@ -42,14 +42,14 @@ class Model(nn.Module):
 
         if configs.llm_model == 'LLAMA':
             # self.llama_config = LlamaConfig.from_pretrained('/mnt/alps/modelhub/pretrained_model/LLaMA/7B_hf/')
-            self.llama_config = LlamaConfig.from_pretrained('huggyllama/llama-7b')
+            self.llama_config = LlamaConfig.from_pretrained('C:\\Users\\Administrator\\Desktop\\Time-LLM\\Llama-3___2-1B-Instruct')
             self.llama_config.num_hidden_layers = configs.llm_layers
             self.llama_config.output_attentions = True
             self.llama_config.output_hidden_states = True
             try:
                 self.llm_model = LlamaModel.from_pretrained(
                     # "/mnt/alps/modelhub/pretrained_model/LLaMA/7B_hf/",
-                    'huggyllama/llama-7b',
+                    'C:\\Users\\Administrator\\Desktop\\Time-LLM\\Llama-3___2-1B-Instruct',
                     trust_remote_code=True,
                     local_files_only=True,
                     config=self.llama_config,
@@ -59,16 +59,16 @@ class Model(nn.Module):
                 print("Local model files not found. Attempting to download...")
                 self.llm_model = LlamaModel.from_pretrained(
                     # "/mnt/alps/modelhub/pretrained_model/LLaMA/7B_hf/",
-                    'huggyllama/llama-7b',
+                    'C:\\Users\\Administrator\\Desktop\\Time-LLM\\Llama-3___2-1B-Instruct',
                     trust_remote_code=True,
                     local_files_only=False,
                     config=self.llama_config,
                     # load_in_4bit=True
                 )
             try:
-                self.tokenizer = LlamaTokenizer.from_pretrained(
+                self.tokenizer = AutoTokenizer.from_pretrained(
                     # "/mnt/alps/modelhub/pretrained_model/LLaMA/7B_hf/tokenizer.model",
-                    'huggyllama/llama-7b',
+                    'C:\\Users\\Administrator\\Desktop\\Time-LLM\\Llama-3___2-1B-Instruct',
                     trust_remote_code=True,
                     local_files_only=True
                 )
@@ -76,7 +76,7 @@ class Model(nn.Module):
                 print("Local tokenizer files not found. Atempting to download them..")
                 self.tokenizer = LlamaTokenizer.from_pretrained(
                     # "/mnt/alps/modelhub/pretrained_model/LLaMA/7B_hf/tokenizer.model",
-                    'huggyllama/llama-7b',
+                    'C:\\Users\\Administrator\\Desktop\\Time-LLM\\Llama-3___2-1B-Instruct',
                     trust_remote_code=True,
                     local_files_only=False
                 )
@@ -255,8 +255,10 @@ class Model(nn.Module):
         return dec_out
 
     def calcute_lags(self, x_enc):
-        q_fft = torch.fft.rfft(x_enc.permute(0, 2, 1).contiguous(), dim=-1)
-        k_fft = torch.fft.rfft(x_enc.permute(0, 2, 1).contiguous(), dim=-1)
+        # 将输入转换为float32进行FFT计算，因为torch.fft不支持bfloat16
+        x_enc_float = x_enc.float()
+        q_fft = torch.fft.rfft(x_enc_float.permute(0, 2, 1).contiguous(), dim=-1)
+        k_fft = torch.fft.rfft(x_enc_float.permute(0, 2, 1).contiguous(), dim=-1)
         res = q_fft * torch.conj(k_fft)
         corr = torch.fft.irfft(res, dim=-1)
         mean_value = torch.mean(corr, dim=1)

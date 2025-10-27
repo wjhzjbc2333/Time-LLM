@@ -1,0 +1,6 @@
+dataset/
+Llama-3___2-1B-Instruct/
+Llama-3___2-1B/
+*.pyc
+\checkpoints
+.idea
