@@ -42,14 +42,14 @@ class Model(nn.Module):
 
         if configs.llm_model == 'LLAMA':
             # self.llama_config = LlamaConfig.from_pretrained('/mnt/alps/modelhub/pretrained_model/LLaMA/7B_hf/')
-            self.llama_config = LlamaConfig.from_pretrained('C:\\Users\\Administrator\\Desktop\\Time-LLM\\Llama-3___2-1B-Instruct')
+            self.llama_config = LlamaConfig.from_pretrained('/home/amora/Time-LLM/Llama-3___2-1B-Instruct')
             self.llama_config.num_hidden_layers = configs.llm_layers
             self.llama_config.output_attentions = True
             self.llama_config.output_hidden_states = True
             try:
                 self.llm_model = LlamaModel.from_pretrained(
                     # "/mnt/alps/modelhub/pretrained_model/LLaMA/7B_hf/",
-                    'C:\\Users\\Administrator\\Desktop\\Time-LLM\\Llama-3___2-1B-Instruct',
+                    '/home/amora/Time-LLM/Llama-3___2-1B-Instruct',
                     trust_remote_code=True,
                     local_files_only=True,
                     config=self.llama_config,
@@ -59,7 +59,7 @@ class Model(nn.Module):
                 print("Local model files not found. Attempting to download...")
                 self.llm_model = LlamaModel.from_pretrained(
                     # "/mnt/alps/modelhub/pretrained_model/LLaMA/7B_hf/",
-                    'C:\\Users\\Administrator\\Desktop\\Time-LLM\\Llama-3___2-1B-Instruct',
+                    '/home/amora/Time-LLM/Llama-3___2-1B-Instruct',
                     trust_remote_code=True,
                     local_files_only=False,
                     config=self.llama_config,
@@ -68,7 +68,7 @@ class Model(nn.Module):
             try:
                 self.tokenizer = AutoTokenizer.from_pretrained(
                     # "/mnt/alps/modelhub/pretrained_model/LLaMA/7B_hf/tokenizer.model",
-                    'C:\\Users\\Administrator\\Desktop\\Time-LLM\\Llama-3___2-1B-Instruct',
+                    '/home/amora/Time-LLM/Llama-3___2-1B-Instruct',
                     trust_remote_code=True,
                     local_files_only=True
                 )
@@ -76,7 +76,7 @@ class Model(nn.Module):
                 print("Local tokenizer files not found. Atempting to download them..")
                 self.tokenizer = LlamaTokenizer.from_pretrained(
                     # "/mnt/alps/modelhub/pretrained_model/LLaMA/7B_hf/tokenizer.model",
-                    'C:\\Users\\Administrator\\Desktop\\Time-LLM\\Llama-3___2-1B-Instruct',
+                    '/home/amora/Time-LLM/Llama-3___2-1B-Instruct',
                     trust_remote_code=True,
                     local_files_only=False
                 )
@@ -162,6 +162,9 @@ class Model(nn.Module):
 
         for param in self.llm_model.parameters():
             param.requires_grad = False
+        
+        # 将LLM模型转换为bfloat16以保持数据类型一致
+        self.llm_model = self.llm_model.to(torch.bfloat16)
 
         if configs.prompt_domain:
             self.description = configs.content
@@ -200,7 +203,7 @@ class Model(nn.Module):
     def forecast(self, x_enc, x_mark_enc, x_dec, x_mark_dec):
 
         x_enc = self.normalize_layers(x_enc, 'norm')
-
+        #B: Batch_size N: Number of variables,通道数量 T: Time steps, 时间步数
         B, T, N = x_enc.size()
         x_enc = x_enc.permute(0, 2, 1).contiguous().reshape(B * N, T, 1)
 
@@ -232,13 +235,19 @@ class Model(nn.Module):
         x_enc = x_enc.reshape(B, N, T).permute(0, 2, 1).contiguous()
 
         prompt = self.tokenizer(prompt, return_tensors="pt", padding=True, truncation=True, max_length=2048).input_ids
+        #带自然语言的嵌入
         prompt_embeddings = self.llm_model.get_input_embeddings()(prompt.to(x_enc.device))  # (batch, prompt_token, dim)
 
+        #将词表映射到少量语义原型上降维
         source_embeddings = self.mapping_layer(self.word_embeddings.permute(1, 0)).permute(1, 0)
-
+        
+        #恢复输入维度结构
         x_enc = x_enc.permute(0, 2, 1).contiguous()
-        enc_out, n_vars = self.patch_embedding(x_enc.to(torch.bfloat16))
+        #时序输入先过patch
+        enc_out, n_vars = self.patch_embedding(x_enc)
+        #时序输入再与语义原型重编程
         enc_out = self.reprogramming_layer(enc_out, source_embeddings, source_embeddings)
+        #最后拼接自然语言和重编程后的时间序列
         llama_enc_out = torch.cat([prompt_embeddings, enc_out], dim=1)
         dec_out = self.llm_model(inputs_embeds=llama_enc_out).last_hidden_state
         dec_out = dec_out[:, :, :self.d_ff]

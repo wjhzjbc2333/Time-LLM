@@ -1,51 +1,7 @@
-# import torch
-# from transformers import pipeline
-#
-# model_id = "C:\\Users\\Administrator\\Desktop\\Time-LLM\\Llama-3___2-1B"
-#
-# outputs = pipeline(
-#     "text-generation",
-#     model=model_id,
-#     dtype=torch.bfloat16,
-#     device_map="cuda:0",
-#     pad_token_id = 2,
-#     eos_token_id = 2,
-# )
-#
-# outputs("Who are you?")
-
-# import transformers
-# import torch
-#
-# model_id = "C:\\Users\\Administrator\\Desktop\\Time-LLM\\Llama-3___2-1B-Instruct"
-#
-# pipeline = transformers.pipeline(
-#     "text-generation",
-#     model=model_id,
-#     model_kwargs={"dtype": torch.bfloat16},
-#     device_map="cuda:0",
-# )
-#
-# messages = [
-#     {"role": "system", "content": "You are a pirate chatbot who always responds in pirate speak!"},
-#     {"role": "user", "content": "Who are you?"},
-# ]
-#
-# terminators = [
-#     pipeline.tokenizer.eos_token_id,
-#     pipeline.tokenizer.convert_tokens_to_ids("<|eot_id|>")
-# ]
-#
-# outputs = pipeline(
-#     messages,
-#     max_new_tokens=256,
-#     eos_token_id=terminators,
-#     do_sample=True,
-#     temperature=0.6,
-#     top_p=0.9,
-# )
-# print(outputs[0]["generated_text"])
-
+#!/usr/bin/env python3
+"""
+修改后的test.py，支持加载预训练权重
+"""
 from accelerate import Accelerator
 from models import TimeLLM
 import torch
@@ -57,7 +13,28 @@ import numpy as np
 from utils.tools import del_files, EarlyStopping, adjust_learning_rate, vali, load_content
 import os
 os.environ["USE_LIBUV"] = "0"
-os.environ["TOKENIZERS_PARALLELISM"] = "false"
+
+def load_pretrained_model(args, checkpoint_path):
+    """加载预训练模型权重"""
+    # 创建模型
+    model = TimeLLM.Model(args).to(torch.bfloat16)
+    
+    # 检查checkpoint文件是否存在
+    if os.path.exists(checkpoint_path):
+        print(f"正在加载预训练权重: {checkpoint_path}")
+        try:
+            state_dict = torch.load(checkpoint_path, map_location='cpu')
+            model.load_state_dict(state_dict)
+            print("✅ 预训练权重加载成功")
+        except Exception as e:
+            print(f"❌ 预训练权重加载失败: {e}")
+            print("将使用随机初始化的权重")
+    else:
+        print(f"⚠️  未找到预训练权重文件: {checkpoint_path}")
+        print("将使用随机初始化的权重")
+    
+    return model
+
 def main():
     accelerator = Accelerator()
 
@@ -70,11 +47,15 @@ def main():
     parser.add_argument('--model_comment', type=str, default='none', help='prefix when saving test results')
     parser.add_argument('--model', type=str, default='TimeLLM')
     parser.add_argument('--seed', type=int, default=2021, help='random seed')
+    
+    # 添加预训练权重路径参数
+    parser.add_argument('--pretrained_path', type=str, default='', 
+                       help='预训练模型权重路径，例如: ./checkpoints/long_term_forecast_test_TimeLLM_ETTm1_ftM_sl96_ll48_pl96_dm16_nh8_el2_dl1_df32_fc1_ebtimeF_test_0-none/checkpoint')
 
     # data loader
-    parser.add_argument('--data_pretrain', type=str, default='ETTh1', help='dataset type')
-    parser.add_argument('--data', type=str, default='ETTh1', help='dataset type')
-    parser.add_argument('--root_path', type=str, default='./dataset/ETT-small/', help='root path of the data file')
+    parser.add_argument('--data_pretrain', type=str, default='ETTm1', help='dataset type')
+    parser.add_argument('--data', type=str, default='ETTm1', help='dataset type')
+    parser.add_argument('--root_path', type=str, default='./dataset', help='root path of the data file')
     parser.add_argument('--data_path', type=str, default='ETTh1.csv', help='data file')
     parser.add_argument('--data_path_pretrain', type=str, default='ETTh1.csv', help='data file')
     parser.add_argument('--features', type=str, default='M',
@@ -115,7 +96,7 @@ def main():
     parser.add_argument('--stride', type=int, default=8, help='stride')
     parser.add_argument('--prompt_domain', type=int, default=0, help='')
     parser.add_argument('--llm_model', type=str, default='LLAMA', help='LLM model') # LLAMA, GPT2, BERT
-    parser.add_argument('--llm_dim', type=int, default='2048', help='LLM model dimension')# LLama7b:4096; GPT2-small:768; BERT-base:768
+    parser.add_argument('--llm_dim', type=int, default='4096', help='LLM model dimension')# LLama7b:4096; GPT2-small:768; BERT-base:768
 
     # optimization
     parser.add_argument('--num_workers', type=int, default=10, help='data loader num workers')
@@ -135,38 +116,14 @@ def main():
     parser.add_argument('--percent', type=int, default=100)
     args = parser.parse_args()
 
-    '''load prompt + set folder'''
-    args.content = load_content(args)
-    setting = '{}_{}_{}_{}_ft{}_sl{}_ll{}_pl{}_dm{}_nh{}_el{}_dl{}_df{}_fc{}_eb{}_{}'.format(
-        args.task_name,
-        args.model_id,
-        args.model,
-        args.data,
-        args.features,
-        args.seq_len,
-        args.label_len,
-        args.pred_len,
-        args.d_model,
-        args.n_heads,
-        args.e_layers,
-        args.d_layers,
-        args.d_ff,
-        args.factor,
-        args.embed,
-        args.des)
-    path = os.path.join(args.checkpoints,
-                        setting + '-' + args.model_comment)  # unique checkpoint saving path
-    if not os.path.exists(path) and accelerator.is_local_main_process:
-        os.makedirs(path)
-
-    '''这里仅定义早停机制，checkpoints靠早停验证保存'''
-    early_stopping = EarlyStopping(accelerator=accelerator, patience=args.patience)
-
     '''model'''
-    model = TimeLLM.Model(args).to(torch.bfloat16)
+    # 如果指定了预训练权重路径，则加载权重
+    if args.pretrained_path:
+        model = load_pretrained_model(args, args.pretrained_path)
+    else:
+        model = TimeLLM.Model(args).to(torch.bfloat16)
 
     '''optimizer'''
-    time_now = time.time()
     trained_parameters = []
     for p in model.parameters():
         if p.requires_grad is True:
@@ -176,8 +133,8 @@ def main():
 
     '''training_dataloader'''
     train_data, train_loader = data_provider(args, args.data_pretrain, args.data_path_pretrain, True, 'train')
-    vali_data, vali_loader = data_provider(args, args.data_pretrain, args.data_path_pretrain, True, 'val')
-    test_data, test_loader = data_provider(args, args.data, args.data_path, False, 'test')
+    #vali_data, vali_loader = data_provider(args, args.data_pretrain, args.data_path_pretrain, True, 'val')
+    #test_data, test_loader = data_provider(args, args.data, args.data_path, False, 'test')
 
     '''scheduler'''
     train_steps = len(train_loader)
@@ -205,7 +162,7 @@ def main():
         model.train()
         epoch_time = time.time()
         for i, (batch_x, batch_y, batch_x_mark, batch_y_mark) in enumerate(train_loader):
-            #print(f"===================Epoch: {epoch} Iter: {iter_count}===================")
+            print(f"===================Epoch: {epoch} Iter: {iter_count}===================")
             iter_count += 1
             model_optim.zero_grad()
 
@@ -244,16 +201,6 @@ def main():
 
         accelerator.print("Epoch: {} cost time: {}".format(epoch + 1, time.time() - epoch_time))
         train_loss = np.average(train_loss)
-        vali_loss, vali_mae_loss = vali(args, accelerator, model, vali_data, vali_loader, criterion, mae_metric)
-        test_loss, test_mae_loss = vali(args, accelerator, model, test_data, test_loader, criterion, mae_metric)
-        accelerator.print(
-            "Epoch: {0} | Train Loss: {1:.7f} Vali Loss: {2:.7f} Test Loss: {3:.7f} MAE Loss: {4:.7f}".format(
-                epoch + 1, train_loss, vali_loss, test_loss, test_mae_loss))
-
-        early_stopping(vali_loss, model, path)
-        if early_stopping.early_stop:
-            accelerator.print("Early stopping")
-            break
 
         if args.lradj != 'TST':
             if args.lradj == 'COS':

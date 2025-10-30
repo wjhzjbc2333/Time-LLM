@@ -41,6 +41,7 @@ class Dataset_ETT_hour(Dataset):
         self.__read_data__()
 
         self.enc_in = self.data_x.shape[-1]
+        '''可用的时间窗口数量，如序列为[0:1023],则窗口为[[0:95],[96:191]],[[1:96],[97:192]],...,前者输入后者预测''' 
         self.tot_len = len(self.data_x) - self.seq_len - self.pred_len + 1
 
     def __read_data__(self):
@@ -48,21 +49,27 @@ class Dataset_ETT_hour(Dataset):
         df_raw = pd.read_csv(os.path.join(self.root_path,
                                           self.data_path))
 
+        '''减去seq_len是为了有足够历史数据'''
         border1s = [0, 12 * 30 * 24 - self.seq_len, 12 * 30 * 24 + 4 * 30 * 24 - self.seq_len]
+
+        '''[1-12 Months, 13-16 Months, 17-20 Months]->[train, validate, test]'''
         border2s = [12 * 30 * 24, 12 * 30 * 24 + 4 * 30 * 24, 12 * 30 * 24 + 8 * 30 * 24]
 
         border1 = border1s[self.set_type]
         border2 = border2s[self.set_type]
 
+        '''percent控制训练集大小比例'''
         if self.set_type == 0:
             border2 = (border2 - self.seq_len) * self.percent // 100 + self.seq_len
 
+        '''Multivariate->Multi/Uni  Univariate->Uni'''
         if self.features == 'M' or self.features == 'MS':
             cols_data = df_raw.columns[1:]
             df_data = df_raw[cols_data]
         elif self.features == 'S':
             df_data = df_raw[[self.target]]
 
+        '''数据归一标准化'''
         if self.scale:
             train_data = df_data[border1s[0]:border2s[0]]
             self.scaler.fit(train_data.values)
@@ -70,6 +77,7 @@ class Dataset_ETT_hour(Dataset):
         else:
             data = df_data.values
 
+        '''时间特征离散和连续编码，离散0，适合embedding  连续1，适合线性层'''
         df_stamp = df_raw[['date']][border1:border2]
         df_stamp['date'] = pd.to_datetime(df_stamp.date)
         if self.timeenc == 0:
@@ -91,6 +99,7 @@ class Dataset_ETT_hour(Dataset):
         feat_id = index // self.tot_len
         s_begin = index % self.tot_len
 
+        '''label_len: 让decoder看到足够的上下文信息作为起始，利用部分已知值引导预测'''
         s_end = s_begin + self.seq_len
         r_begin = s_end - self.label_len
         r_end = r_begin + self.label_len + self.pred_len

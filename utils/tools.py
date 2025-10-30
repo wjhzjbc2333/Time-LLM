@@ -140,15 +140,15 @@ def vali(args, accelerator, model, vali_data, vali_loader, criterion, mae_metric
     model.eval()
     with torch.no_grad():
         for i, (batch_x, batch_y, batch_x_mark, batch_y_mark) in tqdm(enumerate(vali_loader)):
-            batch_x = batch_x.float().to(accelerator.device)
-            batch_y = batch_y.float()
+            batch_x = batch_x.to(torch.bfloat16).to(accelerator.device)
+            batch_y = batch_y.to(torch.bfloat16)
 
-            batch_x_mark = batch_x_mark.float().to(accelerator.device)
-            batch_y_mark = batch_y_mark.float().to(accelerator.device)
+            batch_x_mark = batch_x_mark.to(torch.bfloat16).to(accelerator.device)
+            batch_y_mark = batch_y_mark.to(torch.bfloat16).to(accelerator.device)
 
             # decoder input
-            dec_inp = torch.zeros_like(batch_y[:, -args.pred_len:, :]).float()
-            dec_inp = torch.cat([batch_y[:, :args.label_len, :], dec_inp], dim=1).float().to(
+            dec_inp = torch.zeros_like(batch_y[:, -args.pred_len:, :]).to(torch.bfloat16)
+            dec_inp = torch.cat([batch_y[:, :args.label_len, :], dec_inp], dim=1).to(torch.bfloat16).to(
                 accelerator.device)
             # encoder - decoder
             if args.use_amp:
@@ -189,15 +189,15 @@ def vali(args, accelerator, model, vali_data, vali_loader, criterion, mae_metric
 def test(args, accelerator, model, train_loader, vali_loader, criterion):
     x, _ = train_loader.dataset.last_insample_window()
     y = vali_loader.dataset.timeseries
-    x = torch.tensor(x, dtype=torch.float32).to(accelerator.device)
+    x = torch.tensor(x, dtype=torch.bfloat16).to(accelerator.device)
     x = x.unsqueeze(-1)
 
     model.eval()
     with torch.no_grad():
         B, _, C = x.shape
-        dec_inp = torch.zeros((B, args.pred_len, C)).float().to(accelerator.device)
+        dec_inp = torch.zeros((B, args.pred_len, C)).to(torch.bfloat16).to(accelerator.device)
         dec_inp = torch.cat([x[:, -args.label_len:, :], dec_inp], dim=1)
-        outputs = torch.zeros((B, args.pred_len, C)).float().to(accelerator.device)
+        outputs = torch.zeros((B, args.pred_len, C)).to(torch.bfloat16).to(accelerator.device)
         id_list = np.arange(0, B, args.eval_batch_size)
         id_list = np.append(id_list, B)
         for i in range(len(id_list) - 1):
