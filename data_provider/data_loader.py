@@ -396,3 +396,102 @@ class Dataset_M4(Dataset):
             insample_mask[i, -len(ts):] = 1.0
         return insample, insample_mask
 
+
+class Dataset_City(Dataset):
+    def __init__(self, root_path, flag='train', size=None,
+                 features='S', data_path='CityA.csv',
+                 target=None, scale=True, timeenc=0, freq='h', percent=100,
+                 seasonal_patterns=None):
+        if size == None:
+            self.seq_len = 24 * 4 * 4
+            self.label_len = 24 * 4
+            self.pred_len = 24 * 4
+        else:
+            self.seq_len = size[0]
+            self.label_len = size[1]
+            self.pred_len = size[2]
+        assert flag in ['train', 'test', 'val']
+        type_map = {'train': 0, 'val': 1, 'test': 2}
+        self.set_type = type_map[flag]
+
+        self.features = features
+        self.scale = scale
+        self.timeenc = timeenc
+        self.freq = freq
+        self.percent = percent
+
+        self.root_path = root_path
+        self.data_path = data_path
+        self.__read_data__()
+
+        self.enc_in = self.data_x.shape[-1]
+        self.tot_len = len(self.data_x) - self.seq_len - self.pred_len + 1
+
+    def __read_data__(self):
+        self.scaler = StandardScaler()
+        df_raw = pd.read_csv(os.path.join(self.root_path, self.data_path), header=None)
+
+        n = len(df_raw)
+        cols = df_raw.columns.tolist()
+        if len(cols) < 3:
+            raise ValueError('City dataset must have at least 3 columns, got {}'.format(len(cols)))
+
+        # 仅使用第三列作为目标；将无法解析的字符串(如表头"OT")转为NaN并用0填充
+        col = df_raw.iloc[:, 2]
+        col = pd.to_numeric(col, errors='coerce').fillna(0.0).astype(float)
+        series = col.values.reshape(-1, 1)
+
+        num_train = int(n * 0.7)
+        num_test = int(n * 0.2)
+        num_vali = n - num_train - num_test
+        border1s = [0, num_train - self.seq_len, n - num_test - self.seq_len]
+        border2s = [num_train, num_train + num_vali, n]
+        border1 = border1s[self.set_type]
+        border2 = border2s[self.set_type]
+
+        if self.set_type == 0:
+            border2 = (border2 - self.seq_len) * self.percent // 100 + self.seq_len
+
+        if self.scale:
+            train_data = series[border1s[0]:border2s[0]]
+            self.scaler.fit(train_data)
+            data = self.scaler.transform(series)
+        else:
+            data = series
+
+        # 生成按小时的时间索引并构建时间特征
+        df_stamp = pd.DataFrame()
+        df_stamp['date'] = pd.date_range(start='2000-01-01 00:00:00', periods=(border2 - border1), freq='H')
+        if self.timeenc == 0:
+            df_stamp['month'] = df_stamp.date.apply(lambda row: row.month, 1)
+            df_stamp['day'] = df_stamp.date.apply(lambda row: row.day, 1)
+            df_stamp['weekday'] = df_stamp.date.apply(lambda row: row.weekday(), 1)
+            df_stamp['hour'] = df_stamp.date.apply(lambda row: row.hour, 1)
+            data_stamp = df_stamp.drop(['date'], 1).values
+        elif self.timeenc == 1:
+            data_stamp = time_features(pd.to_datetime(df_stamp['date'].values), freq=self.freq)
+            data_stamp = data_stamp.transpose(1, 0)
+
+        self.data_x = data[border1:border2]
+        self.data_y = data[border1:border2]
+        self.data_stamp = data_stamp
+
+    def __getitem__(self, index):
+        feat_id = index // self.tot_len
+        s_begin = index % self.tot_len
+
+        s_end = s_begin + self.seq_len
+        r_begin = s_end - self.label_len
+        r_end = r_begin + self.label_len + self.pred_len
+        seq_x = self.data_x[s_begin:s_end, feat_id:feat_id + 1]
+        seq_y = self.data_y[r_begin:r_end, feat_id:feat_id + 1]
+        seq_x_mark = self.data_stamp[s_begin:s_end]
+        seq_y_mark = self.data_stamp[r_begin:r_end]
+
+        return seq_x, seq_y, seq_x_mark, seq_y_mark
+
+    def __len__(self):
+        return (len(self.data_x) - self.seq_len - self.pred_len + 1) * self.enc_in
+
+    def inverse_transform(self, data):
+        return self.scaler.inverse_transform(data)

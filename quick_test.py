@@ -1,107 +1,109 @@
 #!/usr/bin/env python3
 """
-快速测试脚本 - 使用找到的checkpoint文件
+快速测试脚本 - 根据参数构造与 run_main 一致的 setting，定位 checkpoint 并运行评测
 """
 import subprocess
 import sys
 import os
-import glob
+import argparse
 
 
-def find_first_checkpoint():
-    ckpt_dirs = glob.glob(os.path.join(".", "checkpoints", "*"))
-    for d in ckpt_dirs:
-        ckpt = os.path.join(d, "checkpoint")
-        if os.path.isfile(ckpt):
-            return ckpt
-    return None
-
-
-def parse_args_from_setting_dir(checkpoint_path):
-    # directory name contains setting string before last '-' (model_comment suffix)
-    setting_dir = os.path.basename(os.path.dirname(checkpoint_path))
-    setting_core = setting_dir.rsplit('-', 1)[0]
-    parts = setting_core.split('_')
-    
-    # expected indices from run_main setting format
-    # 0:long 1:term 2:forecast 3:model_id 4:model 5:data then keyed tokens
-    parsed = {
-        'data': parts[5] if len(parts) > 5 else 'ETTh1',  # 默认ETTh1
-        'features': 'M',
-        'seq_len': 512,
-        'label_len': 48,
-        'pred_len': 96,
-        'd_model': 32,
-        'n_heads': 8,
-        'e_layers': 2,
-        'd_layers': 1,
-        'd_ff': 128,
-        'factor': 3,
-        'embed': 'timeF',
-        'llm_layers': 32,  # 默认LLM层数
-        'llm_dim': 2048,  # 默认LLM维度
-    }
-    for p in parts:
-        if p.startswith('ft'):
-            parsed['features'] = p[2:]
-        elif p.startswith('sl'):
-            parsed['seq_len'] = int(p[2:])
-        elif p.startswith('ll'):
-            parsed['label_len'] = int(p[2:])
-        elif p.startswith('pl'):
-            parsed['pred_len'] = int(p[2:])
-        elif p.startswith('dm'):
-            parsed['d_model'] = int(p[2:])
-        elif p.startswith('nh'):
-            parsed['n_heads'] = int(p[2:])
-        elif p.startswith('el'):
-            parsed['e_layers'] = int(p[2:])
-        elif p.startswith('dl'):
-            parsed['d_layers'] = int(p[2:])
-        elif p.startswith('df'):
-            parsed['d_ff'] = int(p[2:])
-        elif p.startswith('fc'):
-            parsed['factor'] = int(p[2:])
-        elif p.startswith('eb'):
-            parsed['embed'] = p[2:]
-        # 注意：llm_layers 和 llm_dim 通常不在目录名中，需要从训练参数推断
-        # 这里我们使用默认值，用户可以通过命令行参数覆盖
-    return parsed
+def build_setting(args: argparse.Namespace) -> str:
+    return '{}_{}_{}_{}_ft{}_sl{}_ll{}_pl{}_dm{}_nh{}_el{}_dl{}_df{}_fc{}_eb{}_{}_{}'.format(
+        args.task_name,
+        args.model_id,
+        args.model,
+        args.data,
+        args.features,
+        args.seq_len,
+        args.label_len,
+        args.pred_len,
+        args.d_model,
+        args.n_heads,
+        args.e_layers,
+        args.d_layers,
+        args.d_ff,
+        args.factor,
+        args.embed,
+        args.des,
+        args.exp_index,
+    )
 
 def main():
-    ckpt = find_first_checkpoint()
-    if ckpt is None:
-        print("未找到checkpoint文件，请先训练模型。")
+    parser = argparse.ArgumentParser(description='Quick Test Runner')
+
+    # 与 run_main 的关键字段保持一致（提供默认值）
+    parser.add_argument('--task_name', type=str, default='long_term_forecast')
+    parser.add_argument('--model_id', type=str, default='CityA-512-48-336')
+    parser.add_argument('--model_comment', type=str, default='TimeLLM-CityA')
+    parser.add_argument('--model', type=str, default='TimeLLM')
+
+    parser.add_argument('--data', type=str, default='CityA')
+    parser.add_argument('--root_path', type=str, default='./dataset/city/')
+    parser.add_argument('--data_path', type=str, default='CityA.csv')
+    parser.add_argument('--features', type=str, default='S')
+
+    parser.add_argument('--seq_len', type=int, default=512)
+    parser.add_argument('--label_len', type=int, default=48)
+    parser.add_argument('--pred_len', type=int, default=336)
+
+    parser.add_argument('--d_model', type=int, default=32)
+    parser.add_argument('--n_heads', type=int, default=8)
+    parser.add_argument('--e_layers', type=int, default=2)
+    parser.add_argument('--d_layers', type=int, default=1)
+    parser.add_argument('--d_ff', type=int, default=128)
+    parser.add_argument('--factor', type=int, default=3)
+    parser.add_argument('--embed', type=str, default='timeF')
+
+    parser.add_argument('--llm_layers', type=int, default=32)
+    parser.add_argument('--llm_dim', type=int, default=2048)
+
+    parser.add_argument('--des', type=str, default='Exp')
+    parser.add_argument('--exp_index', type=int, default=0)
+
+    parser.add_argument('--checkpoints', type=str, default='./checkpoints')
+
+    # 可选：评测脚本控制
+    parser.add_argument('--summary_sample_index', type=int, default=0)
+    parser.add_argument('--no_save_predictions', action='store_true')
+
+    args = parser.parse_args()
+
+    setting = build_setting(args)
+    ckpt_dir = os.path.join(args.checkpoints, setting + '-' + args.model_comment)
+    ckpt_path = os.path.join(ckpt_dir, 'checkpoint')
+
+    if not os.path.isfile(ckpt_path):
+        print(f"未找到 checkpoint 文件: {ckpt_path}")
+        print("请确认参数与训练时一致，或修改 quick_test.py 的参数后重试。")
         sys.exit(1)
 
-    parsed = parse_args_from_setting_dir(ckpt)
-
-    data_path = f"{parsed['data']}.csv"
-    root_path = "./dataset/ETT-small"
-
     cmd = [
-        "python", "test_model_evaluation.py",
-        "--checkpoint_path", ckpt,
-        "--data", parsed['data'],
-        "--root_path", root_path,
-        "--data_path", data_path,
-        "--features", parsed['features'],
-        "--seq_len", str(parsed['seq_len']),
-        "--label_len", str(parsed['label_len']),
-        "--pred_len", str(parsed['pred_len']),
-        "--d_model", str(parsed['d_model']),
-        "--n_heads", str(parsed['n_heads']),
-        "--e_layers", str(parsed['e_layers']),
-        "--d_layers", str(parsed['d_layers']),
-        "--d_ff", str(parsed['d_ff']),
-        "--embed", parsed['embed'],
-        "--llm_layers", str(parsed['llm_layers']),
-        "--llm_dim", str(parsed['llm_dim']),
-        "--save_predictions",
-        "--plot_results",
+        'python', 'test_model_evaluation.py',
+        '--checkpoint_path', ckpt_path,
+        '--data', args.data,
+        '--root_path', args.root_path,
+        '--data_path', args.data_path,
+        '--features', args.features,
+        '--seq_len', str(args.seq_len),
+        '--label_len', str(args.label_len),
+        '--pred_len', str(args.pred_len),
+        '--d_model', str(args.d_model),
+        '--n_heads', str(args.n_heads),
+        '--e_layers', str(args.e_layers),
+        '--d_layers', str(args.d_layers),
+        '--d_ff', str(args.d_ff),
+        '--embed', args.embed,
+        '--llm_layers', str(args.llm_layers),
+        '--llm_dim', str(args.llm_dim),
+        '--save_channel_summary',
+        '--summary_sample_index', str(args.summary_sample_index),
     ]
-    
-    print("运行命令:", " ".join(cmd))
+
+    if not args.no_save_predictions:
+        cmd.append('--save_predictions')
+
+    print('运行命令:', ' '.join(cmd))
     subprocess.run(cmd)
 
 if __name__ == "__main__":

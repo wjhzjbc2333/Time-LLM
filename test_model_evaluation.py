@@ -105,8 +105,14 @@ def create_args():
                        help='path to the trained model checkpoint')
     parser.add_argument('--save_predictions', action='store_true', 
                        help='save predictions to file')
-    parser.add_argument('--plot_results', action='store_true', 
-                       help='plot prediction results')
+    parser.add_argument('--save_all_channel_plots', action='store_true', default=False,
+                       help='save comparison plots that include all channels per sample (default: False)')
+    parser.add_argument('--max_plot_samples', type=int, default=0,
+                       help='limit number of samples to plot; 0 means all (default: 0)')
+    parser.add_argument('--save_channel_summary', action='store_true', default=True,
+                       help='save one big figure that summarizes all channels for one sample (default: True)')
+    parser.add_argument('--summary_sample_index', type=int, default=0,
+                       help='which sample index to summarize in the big figure (default: 0)')
     
     return parser.parse_args()
 
@@ -141,6 +147,7 @@ def evaluate_model(args, model, test_loader, accelerator):
     total_mae_loss = []
     all_predictions = []
     all_targets = []
+    all_inputs = []
     
     criterion = torch.nn.MSELoss()
     mae_metric = torch.nn.L1Loss()
@@ -182,9 +189,10 @@ def evaluate_model(args, model, test_loader, accelerator):
             total_loss.append(loss.item())
             total_mae_loss.append(mae_loss.item())
             
-            # 收集预测结果
+            # 收集预测结果与输入序列
             all_predictions.append(outputs.cpu().float().numpy())
             all_targets.append(batch_y.numpy())
+            all_inputs.append(batch_x.cpu().float().numpy())
     
     # 计算平均损失
     avg_loss = np.mean(total_loss)
@@ -193,8 +201,9 @@ def evaluate_model(args, model, test_loader, accelerator):
     # 合并所有预测结果
     all_predictions = np.concatenate(all_predictions, axis=0)
     all_targets = np.concatenate(all_targets, axis=0)
+    all_inputs = np.concatenate(all_inputs, axis=0)
     
-    return avg_loss, avg_mae_loss, all_predictions, all_targets
+    return avg_loss, avg_mae_loss, all_predictions, all_targets, all_inputs
 
 def calculate_metrics(predictions, targets):
     """计算各种评估指标"""
@@ -226,38 +235,7 @@ def calculate_metrics(predictions, targets):
         'CORR': corr
     }
 
-def plot_results(predictions, targets, save_path='./results'):
-    """绘制预测结果"""
-    print("绘制预测结果...")
-    
-    os.makedirs(save_path, exist_ok=True)
-    
-    # 选择前几个样本进行可视化
-    num_samples = min(5, predictions.shape[0])
-    num_features = predictions.shape[2]
-    
-    fig, axes = plt.subplots(num_samples, num_features, figsize=(15, 3*num_samples))
-    if num_samples == 1:
-        axes = axes.reshape(1, -1)
-    if num_features == 1:
-        axes = axes.reshape(-1, 1)
-    
-    for i in range(num_samples):
-        for j in range(num_features):
-            ax = axes[i, j]
-            
-            # 绘制真实值和预测值
-            ax.plot(targets[i, :, j], label='True', color='blue', alpha=0.7)
-            ax.plot(predictions[i, :, j], label='Predicted', color='red', alpha=0.7)
-            
-            ax.set_title(f'Sample {i+1}, Feature {j+1}')
-            ax.legend()
-            ax.grid(True, alpha=0.3)
-    
-    plt.tight_layout()
-    plt.savefig(os.path.join(save_path, 'prediction_results.png'), dpi=300, bbox_inches='tight')
-    plt.show()
-    print(f"预测结果图已保存到: {os.path.join(save_path, 'prediction_results.png')}")
+# 已移除原先的 plot_results，避免重复和大规模文件输出
 
 def save_predictions(predictions, targets, save_path='./results'):
     """保存预测结果"""
@@ -278,6 +256,113 @@ def save_predictions(predictions, targets, save_path='./results'):
         target_df.to_csv(os.path.join(save_path, 'targets.csv'), index=False)
     
     print(f"预测结果已保存到: {save_path}")
+
+def save_all_channel_plots(predictions, targets, save_path='./results', max_samples=0):
+    """按样本保存图像，每张图包含该样本的所有通道对比曲线。
+    保存结构：save_path/all_channels/sample_{i+1}_all_channels.png
+    """
+    print("保存包含所有通道的对比曲线图（按样本）...")
+    os.makedirs(save_path, exist_ok=True)
+    out_dir = os.path.join(save_path, 'all_channels')
+    os.makedirs(out_dir, exist_ok=True)
+
+    num_samples = predictions.shape[0]
+    num_features = predictions.shape[2]
+
+    if max_samples and max_samples > 0:
+        num_samples = min(num_samples, max_samples)
+
+    # 计算一个紧凑的子图网格（尽量接近方阵）
+    # 行列数选择使得 rows * cols >= num_features 且 |rows - cols| 最小
+    def compute_grid(k):
+        cols = int(np.ceil(np.sqrt(k)))
+        rows = int(np.ceil(k / cols))
+        return rows, cols
+
+    rows, cols = compute_grid(num_features)
+
+    for i in tqdm(range(num_samples), desc="Plotting samples (all channels)"):
+        fig, axes = plt.subplots(rows, cols, figsize=(4*cols, 3*rows))
+
+        # 统一 axes 为 2D 数组便于索引
+        if rows == 1 and cols == 1:
+            axes = np.array([[axes]])
+        elif rows == 1:
+            axes = axes.reshape(1, -1)
+        elif cols == 1:
+            axes = axes.reshape(-1, 1)
+
+        # 绘制每个通道
+        for j in range(num_features):
+            r = j // cols
+            c = j % cols
+            ax = axes[r, c]
+            ax.plot(targets[i, :, j], label='True', color='blue', alpha=0.8)
+            ax.plot(predictions[i, :, j], label='Predicted', color='red', alpha=0.8)
+            ax.set_title(f'Sample {i+1} - Channel {j+1}')
+            ax.legend(fontsize=8)
+            ax.grid(True, alpha=0.3)
+
+        # 对多余的子图清空隐藏
+        for j in range(num_features, rows * cols):
+            r = j // cols
+            c = j % cols
+            axes[r, c].axis('off')
+
+        plt.tight_layout()
+        out_path = os.path.join(out_dir, f'sample_{i+1}_all_channels.png')
+        plt.savefig(out_path, dpi=250, bbox_inches='tight')
+        plt.close(fig)
+    print(f"包含所有通道的曲线图已保存到: {out_dir}")
+
+def save_channel_summary_figure(predictions, targets, inputs, args, sample_index=0, save_path='./results'):
+    """生成一张汇总大图：每个通道一个子图，展示：
+    - 绿色：输入数据，长度为 seq_len
+    - 橙色：预测数据，长度为 pred_len
+    - 蓝色：与预测长度相同的真实数据，长度为 pred_len
+    所有子图横轴拼接为 [0..seq_len-1] 输入段， [seq_len..seq_len+pred_len-1] 预测/真实段。
+    """
+    os.makedirs(save_path, exist_ok=True)
+    out_path = os.path.join(save_path, 'channel_summary.png')
+
+    # 基于输入决定通道数，确保始终按全部输入通道绘制
+    num_features = inputs.shape[2]
+    seq_len = args.seq_len
+    pred_len = args.pred_len
+
+    rows, cols = num_features, 1
+    fig, axes = plt.subplots(rows, cols, figsize=(10, 2.5 * rows))
+    # 统一为二维数组，避免单通道或单行列时出现一维 axes
+    if rows == 1 and cols == 1:
+        axes = np.array([[axes]])
+    elif rows == 1:
+        axes = axes.reshape(1, -1)
+    elif cols == 1:
+        axes = axes.reshape(-1, 1)
+
+    # 选择样本
+    s = int(np.clip(sample_index, 0, predictions.shape[0] - 1))
+    x_in = np.arange(seq_len)
+    x_out = np.arange(seq_len, seq_len + pred_len)
+
+    for j in range(num_features):
+        ax = axes[j, 0]
+        # 输入段
+        ax.plot(x_in, inputs[s, :seq_len, j], color='green', label='Input (seq_len)', alpha=0.9)
+        # 预测与真实（与预测长度相同）；仅当该通道存在对应维度时叠加
+        if j < predictions.shape[2]:
+            ax.plot(x_out, predictions[s, :pred_len, j], color='orange', label='Pred (pred_len)', alpha=0.9)
+        if j < targets.shape[2]:
+            ax.plot(x_out, targets[s, :pred_len, j], color='blue', label='True (pred_len)', alpha=0.9)
+        ax.set_title(f'Channel {j+1}')
+        ax.grid(True, alpha=0.3)
+        if j == 0:
+            ax.legend(loc='upper right', fontsize=8)
+
+    plt.tight_layout()
+    plt.savefig(out_path, dpi=300, bbox_inches='tight')
+    plt.close(fig)
+    print(f"通道汇总图已保存到: {out_path}")
 
 def main():
     """主函数"""
@@ -310,7 +395,7 @@ def main():
     print("\n开始模型评估...")
     start_time = time.time()
     
-    avg_loss, avg_mae_loss, predictions, targets = evaluate_model(args, model, test_loader, accelerator)
+    avg_loss, avg_mae_loss, predictions, targets, inputs_all = evaluate_model(args, model, test_loader, accelerator)
     
     # 计算评估指标
     metrics = calculate_metrics(predictions, targets)
@@ -338,9 +423,27 @@ def main():
     if args.save_predictions:
         save_predictions(predictions, targets)
     
-    # 绘制结果
-    if args.plot_results:
-        plot_results(predictions, targets)
+    # 已移除 prediction_results.png 输出逻辑
+    
+    # 保存每个通道的曲线
+    if args.save_all_channel_plots:
+        save_all_channel_plots(
+            predictions,
+            targets,
+            save_path='./results',
+            max_samples=args.max_plot_samples,
+        )
+
+    # 保存通道汇总大图（每通道一张子图，汇总到一张图）
+    if args.save_channel_summary:
+        save_channel_summary_figure(
+            predictions,
+            targets,
+            inputs_all,
+            args,
+            sample_index=args.summary_sample_index,
+            save_path='./results',
+        )
     
     print("\n" + "=" * 60)
     print("评估完成！")
